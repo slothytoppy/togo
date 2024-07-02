@@ -2,17 +2,19 @@ package main
 
 import (
 	"fmt"
-	// "github.com/charmbracelet/bubbles/viewport"
+	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
-	//"github.com/charmbracelet/glamour"
 	"os"
 )
 
 type model struct {
-	cursor  uint
-	choices []string
-	buffer  []byte
-	mode    int
+	ta        textarea.Model
+	selection uint
+	choices   []string
+	buffer    []string
+	cursor    uint
+	mode      int
+	// change mode to be a bool since i only have two views
 }
 
 const (
@@ -21,34 +23,71 @@ const (
 )
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return textarea.Blink
+}
+
+func update_file_rendering(key tea.KeyMsg, m model) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case tea.KeyEnter.String():
+		//m.buffer = append(m.buffer, m.ta.Value())
+	case "esc":
+		m.buffer = nil
+		m.ta.Reset()
+		m.mode = selection
+	}
+	return m, nil
+}
+
+func update_selection(key tea.KeyMsg, m model) (tea.Model, tea.Cmd) {
+	switch key.String() {
+	case "q":
+		return m, tea.Quit
+	case "up", "w", "k":
+		if m.selection > 0 {
+			m.selection -= 1
+		}
+	case "down", "s", "j":
+		if m.selection < uint(len(m.choices)-1) {
+			m.selection += 1
+		}
+	case "enter", " ":
+		m.ta.Reset()
+		/*
+			buffer, _ := os.ReadFile("journals/" + m.choices[m.selection])
+				str := strings.Split(string(buffer), "\n")
+					for i := range str {
+						m.buffer = append(m.buffer, str[i])
+					}
+		*/
+		m.mode = file_rendering
+		m.ta.SetHeight(47)
+	}
+	return m, nil
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		tiCmd tea.Cmd
+	)
+
+	m.ta, tiCmd = m.ta.Update(msg)
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q":
+		case "ctrl+c":
 			return m, tea.Quit
 		}
 		if m.mode == file_rendering {
+			m, cmd := update_file_rendering(msg, m)
+			return m, cmd
 		}
 		if m.mode == selection {
-			switch msg.String() {
-			case "up", "w", "k":
-				if m.cursor > 0 {
-					m.cursor -= 1
-				}
-			case "down", "s", "j":
-				if m.cursor < uint(len(m.choices)-1) {
-					m.cursor += 1
-				}
-			case "enter", " ":
-				m.mode = file_rendering
-			}
+			m, cmd := update_selection(msg, m)
+			return m, cmd
 		}
 	}
-	return m, nil
+	return m, tea.Batch(tiCmd)
 }
 
 func (m model) View() string {
@@ -58,16 +97,18 @@ func (m model) View() string {
 	}
 	for i, choice := range m.choices {
 		if m.mode == file_rendering {
-			file := "journals/" + m.choices[m.cursor]
+			file := "journals/" + m.choices[m.selection]
 			s += file + "\n"
-			if len(m.buffer) <= 0 {
-				m.buffer, _ = os.ReadFile(file)
-			}
-			s += string(m.buffer)
-			break
+			s += m.ta.View()
+			/*
+				for i := range m.buffer {
+					s += string(m.buffer[i] + "\n")
+				}
+			*/
+			return s
 		} else if m.mode == selection {
 			cursor := " "
-			if m.cursor == uint(i) {
+			if m.selection == uint(i) {
 				cursor = ">"
 			}
 			s += fmt.Sprintf("%s %s\n", cursor, choice)
@@ -92,8 +133,8 @@ func main() {
 	for _, fi := range fis {
 		m.choices = append(m.choices, fi.Name())
 	}
-	/*	var journal_names []string
-		var file_info = make([][]byte, len(fis))
-	*/
+	m.ta = textarea.New()
+	m.ta.Focus() // enables typing, removing the focus could probably be used for different textareas
+
 	_, _ = tea.NewProgram(m, tea.WithAltScreen()).Run()
 }
