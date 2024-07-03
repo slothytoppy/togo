@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	//"github.com/charmbracelet/bubbles/textarea"
 	"log"
 	"os"
 
@@ -9,56 +11,71 @@ import (
 )
 
 type model struct {
-	selection_model selection_model
-	file_model      file_model
-	mode            bool
-	// change mode to be a bool since i only have two views
+	cursor  uint
+	choices []string
+	mode    uint
+	logger  *log.Logger
+	f       file_renderer
 }
 
 const (
-	selection      = false
-	file_rendering = true
+	selection = iota
+	file_rendering
 )
 
 func (m model) Init() tea.Cmd {
-	return textarea.Blink
+	return nil
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch key := msg.(type) {
-	case tea.KeyMsg:
-		if m.mode == file_rendering {
-			m, cmd := m.file_model.Update(key)
-			return m, cmd
-		}
-		if m.mode == selection {
-			m.file_model.file_name = m.selection_model.choices[m.selection_model.selection]
-			m.file_model.ta = textarea.New()
-			m.file_model.ta.Focus()
-			m, cmd := m.file_model.Update(key)
-			return m, cmd
+	if m.mode == file_rendering {
+		m.logger.Println("chosen")
+		return m.f.Update(msg)
+	}
+	if m.mode == selection {
+		switch key := msg.(type) {
+		case tea.KeyMsg:
+			switch key.String() {
+			case "ctrl+q", "esc":
+				return m, tea.Quit
+			case "up", "w", "k":
+				if m.cursor > 0 {
+					m.cursor -= 1
+				}
+			case "down", "s", "j":
+				if m.cursor < uint(len(m.choices)-1) {
+					m.cursor += 1
+				}
+			case "enter", " ":
+				m.mode = file_rendering
+				m.f.ta = textarea.New()
+				return m, m.f.ta.Focus()
+			}
 		}
 	}
 	return m, nil
 }
 
 func (m model) View() string {
-	if m.mode == file_rendering {
-		return m.file_model.View()
-	} else if m.mode == selection {
-		return m.selection_model.View()
+	s := "what journal would you like to edit\n"
+	for i, choice := range m.choices {
+		cursor := " "
+		if m.cursor == uint(i) {
+			cursor = ">"
+		}
+		s += fmt.Sprintf("%s %s\n", cursor, choice)
 	}
-	return ""
+	return s
 }
 
 func main() {
 	m := model{}
-	m.mode = selection
 	b, _ := os.ReadDir("journals")
 	for _, choices := range b {
-		m.selection_model.choices = append(m.selection_model.choices, choices.Name())
+		m.choices = append(m.choices, choices.Name())
 	}
 	l := log.New(writer{}, "", 0)
-	l.Println("hello")
+	m.logger = l
+	//m.file_model.ta = textarea.New()
 	_, _ = tea.NewProgram(m, tea.WithAltScreen()).Run()
 }
