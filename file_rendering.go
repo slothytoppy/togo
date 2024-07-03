@@ -22,6 +22,8 @@ type file_model struct {
 }
 
 func (m file_model) Init() tea.Cmd {
+	m.ta = textarea.New()
+	m.ta.Focus() // enables typing, removing the focus could probably be used for different textareas
 	return textarea.Blink
 }
 
@@ -44,6 +46,9 @@ func (m file_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m file_model) View() string {
+	if m.file_name == "" {
+		panic("file_model is nil")
+	}
 	var s string
 	file := "journals/" + m.file_name
 	s += file + "\n"

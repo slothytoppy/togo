@@ -1,26 +1,28 @@
 package main
 
 import (
-	"github.com/charmbracelet/bubbles/textarea"
+	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 type selection_model struct {
-	ta        textarea.Model
 	selection uint
 	choices   []string
-	mode      int
+	mode      bool
 }
 
 func (m selection_model) Init() tea.Cmd {
-	return textarea.Blink
+	if len(m.choices) <= 0 {
+		panic("len of fis is <=0")
+	}
+	return nil
 }
 
 func (m selection_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q":
+		case "ctrl+c", "q":
 			return m, tea.Quit
 		case "up", "w", "k":
 			if m.selection > 0 {
@@ -31,7 +33,6 @@ func (m selection_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.selection += 1
 			}
 		case "enter", " ":
-			m.ta.Reset()
 			/*
 				buffer, _ := os.ReadFile("journals/" + m.choices[m.selection])
 					str := strings.Split(string(buffer), "\n")
@@ -40,7 +41,6 @@ func (m selection_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 			*/
 			m.mode = file_rendering
-			m.ta.SetHeight(47)
 		}
 	}
 
@@ -48,5 +48,14 @@ func (m selection_model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m selection_model) View() string {
-	return ""
+	s := ""
+	s += "what journal would you like to edit?\n"
+	cursor := " "
+	for i, choice := range m.choices {
+		if m.selection == uint(i) {
+			cursor = ">"
+		}
+		s += fmt.Sprintf("%s %s\n", cursor, choice)
+	}
+	return s
 }
